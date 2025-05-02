@@ -23,6 +23,9 @@ const productSchema = z.object({
   currency: z.string(),
   emoji: z.string(),
   inStock: z.union([z.boolean(), z.literal('infinite')]),
+  seller: z.string().optional(),
+  sellerTelegram: z.string().optional(),
+  category: z.string().optional(),
 });
 
 const shopSchema = z.object({

@@ -89,7 +89,7 @@ function AppContent() {
           <Route path="/" element={<Home />} />
           <Route path="/confirmation" element={<OrderConfirmation />} />
         </Routes>
-        {import.meta.env.VITE_TEMPO === "true" && useRoutes(routes)}
+        {/* {import.meta.env.VITE_TEMPO === "true" && useRoutes(routes)} */}
       </div>
     </Suspense>
   );

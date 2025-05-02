@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Wallet } from "lucide-react";
 import { Product } from '../config/config'; // Import shared Product type
 
 interface ProductCardProps {
@@ -21,8 +20,8 @@ interface ProductCardProps {
   emoji: string;
   inStock: boolean | "infinite";
   onCheckout: (product: Product) => void;
-  isWalletConnected?: boolean;
-  onConnectWallet?: () => void;
+  seller: string;
+  sellerTelegram?: string;
 }
 
 const ProductCard = ({
@@ -34,23 +33,14 @@ const ProductCard = ({
   emoji,
   inStock,
   onCheckout,
-  isWalletConnected = false,
-  onConnectWallet = () => {},
+  seller,
+  sellerTelegram,
 }: ProductCardProps) => {
-  const productData: Product = { id, name, description, price, currency, emoji, inStock };
-
-  const handleCheckout = () => {
-    if (isWalletConnected && isAvailable) {
-      onCheckout(productData);
-    } else if (!isWalletConnected) {
-      onConnectWallet();
-    }
-  };
-
+  const productData: Product = { id, name, description, price, currency, emoji, inStock, seller, sellerTelegram };
   const isAvailable = inStock === true || inStock === "infinite";
 
   return (
-    <Card className="w-full max-w-full overflow-hidden transition-all duration-200 hover:shadow-lg bg-card dark:bg-card/80 flex flex-col">
+    <Card className="w-full max-w-full overflow-hidden transition-colors duration-200 bg-white dark:bg-background/95 border border-border shadow-md dark:shadow-lg rounded-xl flex flex-col">
       <div className="flex-grow">
         <CardHeader className="pb-2 px-4 pt-4 sm:px-6 sm:pt-6">
           <div className="flex justify-between items-center">
@@ -62,29 +52,40 @@ const ProductCard = ({
           </CardDescription>
         </CardHeader>
         <CardContent className="px-4 sm:px-6">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center mb-2">
             <div className="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-400">
               {price} {currency}
             </div>
+          </div>
+          <div className="flex items-center gap-2 mt-2">
+            <div className="text-sm text-muted-foreground">
+              <span className="font-medium">Seller:</span> {seller || 'Unknown'}
+            </div>
+            {sellerTelegram && (
+              <a
+                href={`https://t.me/${sellerTelegram.replace(/^@/, '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-2 py-0.5 rounded bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium transition-colors whitespace-nowrap"
+                style={{ minWidth: 'unset', width: 'auto' }}
+              >
+                Contact Seller
+              </a>
+            )}
           </div>
         </CardContent>
       </div>
       <CardFooter className="px-4 pb-4 sm:px-6 sm:pb-6">
         <Button
-          onClick={handleCheckout}
-          className={`w-full ${isWalletConnected && isAvailable ? 'bg-purple-700 hover:bg-purple-800 dark:bg-purple-600 dark:hover:bg-purple-700 text-white' : ''}`}
+          onClick={() => isAvailable && onCheckout(productData)}
+          className={`w-full ${isAvailable ? 'bg-purple-700 hover:bg-purple-800 dark:bg-purple-600 dark:hover:bg-purple-700 text-white' : ''}`}
           disabled={!isAvailable}
-          variant={isWalletConnected && isAvailable ? "default" : "outline"}
+          variant={isAvailable ? "default" : "outline"}
         >
           {!isAvailable ? (
             "Sold Out"
-          ) : isWalletConnected ? (
-            "Buy Now"
           ) : (
-            <>
-              <Wallet className="mr-2 h-4 w-4" />
-              Connect wallet to purchase
-            </>
+            "Buy Now"
           )}
         </Button>
       </CardFooter>

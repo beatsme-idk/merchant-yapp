@@ -61,8 +61,6 @@ const OrderConfirmation = () => {
   // Use our media query-based detection instead
   const { isMobile, isTouch } = useDeviceDetection();
 
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
   // Helper function to clean specific parameters from URL without reload
   const cleanUrlParams = (paramsToRemove: string[]) => {
     const newSearchParams = new URLSearchParams(searchParams);
@@ -324,39 +322,33 @@ const OrderConfirmation = () => {
   }
   const telegramLink = shopTelegramHandle ? `https://t.me/${shopTelegramHandle}?text=${telegramMessage}` : '#';
 
-  // Add a function to refresh the iframe
-  const refreshTransactionPreview = () => {
-    if (iframeRef.current) {
-      // Add a timestamp query parameter to force a refresh
-      const timestamp = new Date().getTime();
-      const url = new URL(yodlTxUrl);
-      url.searchParams.set('refresh', timestamp.toString());
-      iframeRef.current.src = url.toString();
-      console.log("Transaction Preview refreshed");
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background dark:bg-gradient-to-br dark:from-purple-900 dark:via-indigo-900 dark:to-purple-800">
       <header className={`sticky top-0 z-10 w-full bg-background/95 dark:bg-transparent backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b dark:border-purple-700/50 ${isInIframe ? 'py-2' : 'py-4'}`}>
         <div className="container mx-auto px-4 flex justify-between items-center">
-          {!isInIframe && (
-            <h1 className="text-2xl font-bold">Order Confirmation</h1>
-          )}
           <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/">
-                <Home className="mr-2 h-4 w-4" />
-                Home
-              </Link>
-            </Button>
+            <Link to="/" className="inline-flex items-center">
+              <Home className="h-6 w-6 mr-1" />
+            </Link>
+            {isSuccess && shopTelegramHandle && (
+              <Button 
+                variant="outline"
+                size="sm"
+                className="ml-1 flex items-center gap-1"
+                onClick={() => window.open(telegramLink, "_blank")}
+              >
+                <Send className="h-4 w-4" />
+                Contact Seller
+              </Button>
+            )}
           </div>
+          <div className="flex-1" />
+          <ThemeToggle />
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 flex flex-col lg:flex-row gap-8">
-        <Card className="w-full lg:w-2/3">
+      <main className="container mx-auto px-4 py-8 flex flex-col gap-8">
+        <Card className="w-full">
           <CardHeader>
             {isSuccess ? (
               <>
@@ -392,54 +384,48 @@ const OrderConfirmation = () => {
           <CardContent>
             <div className="space-y-4">
               <div className="bg-muted p-4 rounded-lg">
-                <h3 className="font-semibold text-center mb-2">Order Summary</h3>
+                <h3 className="font-semibold text-center mb-2">Order Summary & Transaction Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 text-sm">
                   <span className="text-muted-foreground">Order ID:</span>
                   <span className="text-right break-all overflow-hidden overflow-ellipsis">{displayMemo || "N/A"}</span>
-                  
                   {orderDetails && (
                     <>
                       <span className="text-muted-foreground">Product:</span>
                       <span className="text-right">{orderDetails.emoji} {orderDetails.name}</span>
-                      
                       <span className="text-muted-foreground">Amount:</span>
                       <span className="text-right">{orderDetails.price} {orderDetails.currency}</span>
-                      
                       <span className="text-muted-foreground">Timestamp:</span>
                       <span className="text-right">{orderDetails.timestamp}</span>
                     </>
                   )}
+                  {isSuccess && paymentResult && (
+                    <div className="col-span-2 flex justify-center">
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="sm"
+                        className="font-mono text-primary hover:underline flex items-center gap-1 px-2 py-1"
+                      >
+                        <a
+                          href={`https://yodl.me/tx/${paymentResult.txHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          View Receipt
+                          <ExternalLink className="h-3 w-3 flex-shrink-0 ml-1" />
+                        </a>
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
-              
               {warning && (
                 <div className="p-4 mb-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center text-yellow-800">
                   {warning}
                 </div>
               )}
-              
               {isSuccess ? (
                 <>
-                  <Separator />
-                  <div className="space-y-2">
-                    <h3 className="font-semibold">Transaction Details</h3>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                      <span className="text-muted-foreground">Status:</span>
-                      <span className="text-right text-green-600 font-medium">Confirmed</span>
-                      
-                      <span className="text-muted-foreground">Transaction Hash:</span>
-                      <Link 
-                        // Corrected URL prefix for the direct Link component
-                        to={`https://yodl.me/tx/${paymentResult.txHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-right font-mono text-primary hover:underline flex items-center justify-end gap-1 break-all overflow-hidden"
-                      >
-                        {paymentResult.txHash}
-                        <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                      </Link>
-                    </div>
-                  </div>
                   <Separator />
                   <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                     <p className="text-center text-green-800">
@@ -448,83 +434,25 @@ const OrderConfirmation = () => {
                   </div>
                 </>
               ) : (
-                 <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-center text-yellow-800">
-                      Waiting for payment confirmation or payment details not found.
-                    </p>
-                  </div>
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-center text-yellow-800">
+                    Waiting for payment confirmation or payment details not found.
+                  </p>
+                </div>
               )}
             </div>
-          
-            {isSuccess && shopTelegramHandle && (
+            {isSuccess && (
               <div className="mt-4 flex justify-center">
-              <Button 
-                variant="default"
-                onClick={() => window.open(telegramLink, "_blank")}
-              >
-                <Send className="mr-2 h-4 w-4" />
-                Contact Seller
-              </Button>
+                <Button
+                  variant="default"
+                  onClick={() => window.location.href = '/'}
+                >
+                  Done
+                </Button>
               </div>
             )}
           </CardContent>
         </Card>
-
-        {/* Side Column (Transaction Preview only) */}
-        {isSuccess && (
-          <div className="w-full lg:w-1/3 flex flex-col gap-8">
-            {/* Transaction Preview Card (iframe) */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-lg">Transaction Preview</CardTitle>
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  onClick={refreshTransactionPreview}
-                  title="Refresh transaction preview"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-refresh-cw">
-                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
-                    <path d="M21 3v5h-5"></path>
-                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
-                    <path d="M3 21v-5h5"></path>
-                  </svg>
-                </Button>
-              </CardHeader>
-              <CardContent className="flex flex-col items-center gap-2">
-                <p className="text-sm text-muted-foreground text-center px-2">Preview of the Yodl transaction page:</p>
-                <div className="w-full aspect-[1.91/3.12] lg:aspect-[1.91/2.88] border rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 relative iframe-container"> 
-                  {/* Increased height by 20% from previous values */}
-                  <div className="relative w-full h-full">
-                    {/* Overlay with "Transaction Details" text */}
-                    <div className="absolute top-0 left-0 right-0 flex items-center justify-center z-10 bg-black py-2">
-                      <div className="text-white font-medium">
-                        Transaction Details
-                      </div>
-                    </div>
-                    <iframe
-                      ref={iframeRef}
-                      src={yodlTxUrl}
-                      title="Yodl Transaction Preview"
-                      className="w-full h-full border-0 relative z-0"
-                      sandbox="allow-same-origin allow-scripts"
-                      style={{ pointerEvents: 'auto', touchAction: 'auto' }}
-                    >
-                      Loading preview...
-                    </iframe>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                 <Button asChild variant="link" size="sm">
-                   <a href={yodlTxUrl} target="_blank" rel="noopener noreferrer">
-                     View on yodl.me <ExternalLink className="ml-1 h-3 w-3" />
-                   </a>
-                 </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
       </main>
     </div>
   );

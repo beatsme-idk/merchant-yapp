@@ -44,9 +44,7 @@ const CheckoutModal = ({
   const [progress, setProgress] = useState(0);
   const { createPayment, merchantAddress, merchantEns, isInIframe } = useYodl();
   const [orderId] = useState(() => `order_${Date.now()}_${Math.floor(Math.random() * 1000)}`);
-  const [buyerName, setBuyerName] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  
+
   useEffect(() => {
     if (isOpen && product) {
       setPaymentStatus("pending");
@@ -68,51 +66,40 @@ const CheckoutModal = ({
     }
   }, [isOpen, product, orderId]);
 
+  const generateUniqueId = () => Math.random().toString(36).substring(2, 10);
+  const getMemoAndOrderId = () => {
+    if (!product) return { memo: '', orderId: '' };
+    const productName = product.name.replace(/\s+/g, '_').substring(0, 20);
+    const rand = generateUniqueId();
+    const memo = `${productName}_${rand}`;
+    return { memo, orderId: memo };
+  };
+
   const handleStartPayment = async () => {
     if (!product) return;
-    
-    if (!buyerName.trim()) {
-      setError("Please enter your name (max 8 characters).");
-      return;
-    }
-    if (buyerName.length > 8) {
-      setError("Name cannot exceed 8 characters.");
-      return;
-    }
-    
-    setError(null);
+
     setPaymentStatus("processing");
     setProgress(10);
 
-    const timestamp = Date.now().toString().substring(6);
-    
-    const productNameShort = product.name.substring(0, 8).replace(/\s+/g, '_');
-    const userNameShort = buyerName.trim().substring(0, 8).replace(/[^a-zA-Z0-9_-]/g, '_');
-    const formattedOrderId = `${productNameShort}_for_${userNameShort}_${timestamp}`;
-    
-    const finalOrderId = formattedOrderId.substring(0, 31);
+    const { memo, orderId: finalOrderId } = getMemoAndOrderId();
 
     try {
-      const confirmationUrl = generateConfirmationUrl(orderId);
+      const confirmationUrl = generateConfirmationUrl(finalOrderId);
       console.log(`Starting payment for order ${finalOrderId}${isInIframe ? ' (in iframe mode)' : ''}`);
 
       const messageHandler = (event: MessageEvent) => {
         const data = event.data;
-        
-        if (data && typeof data === 'object' && data.type === 'payment_complete' && data.orderId === orderId) {
+        if (data && typeof data === 'object' && data.type === 'payment_complete' && data.orderId === finalOrderId) {
           console.log('Received payment completion message:', data);
           setProgress(100);
           setPaymentStatus("success");
-          
           setTimeout(() => {
-            navigate(`/confirmation?orderId=${orderId}`);
+            navigate(`/confirmation?orderId=${finalOrderId}`);
             onClose();
           }, 1500);
-          
           window.removeEventListener('message', messageHandler);
         }
       };
-      
       window.addEventListener('message', messageHandler);
 
       const payment = await createPayment({
@@ -120,58 +107,19 @@ const CheckoutModal = ({
         currency: product.currency,
         description: product.name,
         orderId: finalOrderId,
+        memo,
         metadata: {
           productId: product.id,
           productName: product.name,
-          orderId: orderId,
-          customerName: buyerName.trim(),
-          emoji: product.emoji,
-          quantity: "1"
+          orderId: finalOrderId,
         },
-        redirectUrl: confirmationUrl
+        redirectUrl: confirmationUrl,
       });
-
-      console.log('Payment request successful (or redirect initiated):', payment);
-
-      if (payment?.txHash) {
-        try {
-          localStorage.setItem(`payment_${orderId}`, JSON.stringify({
-            txHash: payment.txHash,
-            chainId: payment.chainId
-          }));
-        } catch (e) {
-          console.error("Failed to save payment result to localStorage", e);
-        }
-        setProgress(100);
-        setPaymentStatus("success");
-        
-        if (isInIframe) {
-          setTimeout(() => {
-            navigate(`/confirmation?orderId=${orderId}`);
-            onClose();
-          }, 1500);
-        }
-      } else {
-        setPaymentStatus("processing");
-        setProgress(50);
-      }
-      
-      return () => {
-        window.removeEventListener('message', messageHandler);
-      };
-
-    } catch (error: any) {
-      console.error('Payment failed:', error);
-      if (error.message?.includes('cancelled') || error.code === 4001) {
-        console.log('User cancelled the payment');
-        setPaymentStatus("pending");
-      } else if (error.message?.includes('timed out')) {
-        console.log('Payment request timed out');
-        setPaymentStatus("failed");
-      } else {
-        setPaymentStatus("failed");
-      }
+      if (!payment) throw new Error('Payment creation failed');
+    } catch (e) {
+      setPaymentStatus("failed");
       setProgress(0);
+      console.error("Payment failed", e);
     }
   };
 
@@ -208,28 +156,6 @@ const CheckoutModal = ({
         </div>
 
         <Separator className="my-3 sm:my-4" />
-        
-        <div className="mb-3 sm:mb-4">
-          <Label htmlFor="buyerName" className="text-sm font-medium">
-            Your Name (for Memo) <span className="text-red-500">*</span>
-          </Label>
-          <div className="flex items-center mt-1 sm:mt-1.5">
-            <User className="w-4 h-4 mr-2 text-muted-foreground" />
-            <Input
-              id="buyerName"
-              placeholder="Max 8 characters"
-              value={buyerName}
-              onChange={(e) => setBuyerName(e.target.value)}
-              className="flex-1"
-              maxLength={8}
-              required
-            />
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Your name is required and will be included in the transaction memo for seller identification
-          </p>
-          {error && <p className="text-xs text-red-500">{error}</p>}
-        </div>
 
         {paymentStatus === "pending" && (
           <div className="flex flex-col items-center">
