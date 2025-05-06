@@ -15,6 +15,7 @@ interface YodlContextType {
     memo?: string;
     metadata?: Record<string, any>;
     redirectUrl?: string;
+    productPaymentAddress?: string;
   }) => Promise<Payment | null>;
   isInIframe: boolean;
   merchantAddress: string;
@@ -49,7 +50,12 @@ const cleanPaymentUrl = () => {
 
 export const YodlProvider: React.FC<YodlProviderProps> = ({ children }) => {
   // Initialize SDK once as a singleton
-  const [yodl] = useState(() => new YappSDK());
+  const [yodl] = useState(() => {
+    console.log('Initializing Yodl SDK...');
+    const sdk = new YappSDK();
+    console.log('Yodl SDK initialized:', sdk);
+    return sdk;
+  });
   const isInIframeValue = isInIframe();
   
   // Use our media query-based detection
@@ -65,17 +71,12 @@ export const YodlProvider: React.FC<YodlProviderProps> = ({ children }) => {
 
   // Log handler that respects debug mode
   const logDebug = (message: string, data?: any) => {
-    if (isDebugMode) {
-      if (data) {
-        console.log(`[YodlContext] ${message}`, data);
-      } else {
-        console.log(`[YodlContext] ${message}`);
-      }
-    }
+    console.log(`[YodlContext] ${message}`, data || '');
   };
 
   // Ensure we have an identifier
   useEffect(() => {
+    logDebug('Checking merchant configuration:', { merchantAddress, merchantEns });
     if (!merchantAddress && !merchantEns) {
       console.error("CRITICAL: No merchant address or ENS found in validated config. Payment requests will fail.");
     }
@@ -130,6 +131,18 @@ export const YodlProvider: React.FC<YodlProviderProps> = ({ children }) => {
   // Handle message events for payment completion
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      // Add origin validation
+      const allowedOrigins = [
+        window.location.origin,
+        'http://localhost:5174',
+        'https://merchant-yapp.vercel.app'
+      ];
+      
+      if (!allowedOrigins.includes(event.origin)) {
+        console.warn(`Received message from untrusted origin: ${event.origin}`);
+        return;
+      }
+
       const data = event.data;
       
       // Verify this is likely a Yodl payment message
@@ -161,25 +174,25 @@ export const YodlProvider: React.FC<YodlProviderProps> = ({ children }) => {
         }
             
         // Create standardized message
-              const standardizedMessage = {
-                type: 'payment_complete', 
-                txHash,
-                chainId,
-                orderId
-              };
+        const standardizedMessage = {
+          type: 'payment_complete', 
+          txHash,
+          chainId,
+          orderId
+        };
               
         // Broadcast standardized message
         try {
-              // Broadcast locally
-              window.postMessage(standardizedMessage, '*');
-              
+          // Broadcast locally
+          window.postMessage(standardizedMessage, '*');
+          
           // Broadcast to parent if in iframe
-              if (isInIframeValue && window.parent) {
-                 window.parent.postMessage(standardizedMessage, '*');
-              }
-            } catch (e) {
+          if (isInIframeValue && window.parent) {
+            window.parent.postMessage(standardizedMessage, '*');
+          }
+        } catch (e) {
           console.error("Error broadcasting message:", e);
-      }
+        }
       }
     };
 
@@ -206,9 +219,20 @@ export const YodlProvider: React.FC<YodlProviderProps> = ({ children }) => {
     memo?: string;
     metadata?: Record<string, any>;
     redirectUrl?: string;
+    productPaymentAddress?: string;
   }): Promise<Payment | null> => {
     try {
-      const recipientIdentifier = merchantEns || merchantAddress;
+      // Use product's payment address if available, otherwise fall back to admin address
+      const recipientIdentifier = params.productPaymentAddress || merchantEns || merchantAddress;
+      
+      // Add debug logging
+      console.log('Payment address resolution:', {
+        productPaymentAddress: params.productPaymentAddress,
+        merchantEns,
+        merchantAddress,
+        finalRecipient: recipientIdentifier
+      });
+      
       if (!recipientIdentifier) {
         throw new Error("No merchant address or ENS configured.");
       }
@@ -239,7 +263,12 @@ export const YodlProvider: React.FC<YodlProviderProps> = ({ children }) => {
         memo: params.memo || params.orderId,
         metadata: params.metadata,
         redirectUrl,
-        flow
+        flow,
+        allowedOrigins: [
+          window.location.origin,
+          'http://localhost:5174',
+          'https://merchant-yapp.vercel.app'
+        ]
       };
       
       // Create the payment through Yodl

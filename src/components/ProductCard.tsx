@@ -22,6 +22,7 @@ interface ProductCardProps {
   onCheckout: (product: Product) => void;
   seller: string;
   sellerTelegram?: string;
+  paymentAddress?: string;
 }
 
 const ProductCard = ({
@@ -35,8 +36,20 @@ const ProductCard = ({
   onCheckout,
   seller,
   sellerTelegram,
+  paymentAddress,
 }: ProductCardProps) => {
-  const productData: Product = { id, name, description, price, currency, emoji, inStock, seller, sellerTelegram };
+  const productData: Product = { 
+    id, 
+    name, 
+    description, 
+    price, 
+    currency, 
+    emoji, 
+    inStock, 
+    seller, 
+    sellerTelegram,
+    paymentAddress 
+  };
   const isAvailable = inStock === true || inStock === "infinite";
 
   return (

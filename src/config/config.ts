@@ -26,6 +26,7 @@ const productSchema = z.object({
   seller: z.string().optional(),
   sellerTelegram: z.string().optional(),
   category: z.string().optional(),
+  paymentAddress: z.string().optional(),
 });
 
 const shopSchema = z.object({

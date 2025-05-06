@@ -55,6 +55,7 @@ const Home = () => {
           orderId,
         },
         redirectUrl: confirmationUrl,
+        productPaymentAddress: product.paymentAddress,
       });
     } catch (e) {
       toast({ title: "Error", description: "Could not start payment. Please try again.", variant: "destructive" });
@@ -94,6 +95,7 @@ const Home = () => {
                     inStock={productData.inStock !== undefined ? productData.inStock : true}
                     seller={productData.seller || ''}
                     sellerTelegram={productData.sellerTelegram || ''}
+                    paymentAddress={productData.paymentAddress}
                     onCheckout={handleInstantCheckout}
                   />
                 ))}

@@ -85,12 +85,22 @@ const CheckoutModal = ({
 
     try {
       const confirmationUrl = generateConfirmationUrl(finalOrderId);
-      console.log(`Starting payment for order ${finalOrderId}${isInIframe ? ' (in iframe mode)' : ''}`);
+      console.log('Starting payment process:', {
+        orderId: finalOrderId,
+        isInIframe,
+        product: {
+          name: product.name,
+          price: product.price,
+          currency: product.currency,
+          paymentAddress: product.paymentAddress
+        }
+      });
 
       const messageHandler = (event: MessageEvent) => {
+        console.log('Received message event:', event.data);
         const data = event.data;
         if (data && typeof data === 'object' && data.type === 'payment_complete' && data.orderId === finalOrderId) {
-          console.log('Received payment completion message:', data);
+          console.log('Payment completion message received:', data);
           setProgress(100);
           setPaymentStatus("success");
           setTimeout(() => {
@@ -101,6 +111,16 @@ const CheckoutModal = ({
         }
       };
       window.addEventListener('message', messageHandler);
+
+      console.log('Creating payment with options:', {
+        amount: product.price,
+        currency: product.currency,
+        description: product.name,
+        orderId: finalOrderId,
+        memo,
+        redirectUrl: confirmationUrl,
+        productPaymentAddress: product.paymentAddress
+      });
 
       const payment = await createPayment({
         amount: product.price,
@@ -114,12 +134,16 @@ const CheckoutModal = ({
           orderId: finalOrderId,
         },
         redirectUrl: confirmationUrl,
+        productPaymentAddress: product.paymentAddress,
       });
+      
+      console.log('Payment creation result:', payment);
+      
       if (!payment) throw new Error('Payment creation failed');
     } catch (e) {
+      console.error('Payment failed with error:', e);
       setPaymentStatus("failed");
       setProgress(0);
-      console.error("Payment failed", e);
     }
   };
 
