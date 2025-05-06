@@ -76,18 +76,34 @@ const CheckoutModal = ({
   };
 
   const handleStartPayment = async () => {
+    // Prevent multiple calls
+    if (paymentStatus === "processing") {
+      console.log('Payment already in progress, ignoring duplicate click');
+      return;
+    }
+    
     if (!product) return;
 
+    console.log('handleStartPayment called for product:', product);
     setPaymentStatus("processing");
     setProgress(10);
 
     const { memo, orderId: finalOrderId } = getMemoAndOrderId();
+    console.log('Generated memo and orderId:', { memo, finalOrderId });
+
+    // Clean up any existing message listeners from previous attempts
+    if (window._paymentMessageHandler) {
+      console.log('Removing existing message listener');
+      window.removeEventListener('message', window._paymentMessageHandler);
+      window._paymentMessageHandler = null;
+    }
 
     try {
       const confirmationUrl = generateConfirmationUrl(finalOrderId);
       console.log('Starting payment process:', {
         orderId: finalOrderId,
         isInIframe,
+        confirmationUrl,
         product: {
           name: product.name,
           price: product.price,
@@ -96,8 +112,9 @@ const CheckoutModal = ({
         }
       });
 
+      // Set up payment completion listener
       const messageHandler = (event: MessageEvent) => {
-        console.log('Received message event:', event.data);
+        console.log('Received message event:', event.data, 'from origin:', event.origin);
         const data = event.data;
         
         // Verify this is a payment completion message for our order
@@ -110,15 +127,37 @@ const CheckoutModal = ({
           console.log('Payment completion message received:', data);
           setProgress(100);
           setPaymentStatus("success");
+          
+          // Store payment details for confirmation page
+          try {
+            localStorage.setItem(`payment_${finalOrderId}`, JSON.stringify({
+              txHash: data.txHash,
+              chainId: data.chainId,
+              timestamp: new Date().toISOString()
+            }));
+          } catch (err) {
+            console.error("Failed to save payment details to localStorage", err);
+          }
+          
+          // Navigate to confirmation page after a short delay
           setTimeout(() => {
             console.log('Navigating to confirmation page with orderId:', finalOrderId);
             navigate(`/confirmation?orderId=${finalOrderId}`);
             onClose();
           }, 1500);
+          
+          // Clean up listener
           window.removeEventListener('message', messageHandler);
+          window._paymentMessageHandler = null;
         }
       };
+      
+      // Store reference to message handler for cleanup
+      window._paymentMessageHandler = messageHandler;
+      
+      // Add event listener before starting payment
       window.addEventListener('message', messageHandler);
+      console.log('Added message event listener for payment completion');
 
       console.log('Creating payment with options:', {
         amount: product.price,
@@ -130,6 +169,18 @@ const CheckoutModal = ({
         productPaymentAddress: product.paymentAddress
       });
 
+      // Add a timeout to handle cases where the SDK doesn't respond
+      const paymentTimeout = setTimeout(() => {
+        console.error('Payment request timed out in CheckoutModal');
+        setPaymentStatus("failed");
+        setProgress(0);
+        if (window._paymentMessageHandler) {
+          window.removeEventListener('message', window._paymentMessageHandler);
+          window._paymentMessageHandler = null;
+        }
+      }, 5 * 60 * 1000 + 5000); // 5 minutes + 5 seconds buffer
+
+      console.log('About to call createPayment...');
       const payment = await createPayment({
         amount: product.price,
         currency: product.currency,
@@ -153,7 +204,8 @@ const CheckoutModal = ({
       // If we get back null, the payment wasn't created - could be user cancellation or error
       if (!payment) {
         console.error('Payment creation returned null');
-        window.removeEventListener('message', messageHandler);
+        window.removeEventListener('message', window._paymentMessageHandler);
+        window._paymentMessageHandler = null;
         throw new Error('Payment creation failed');
       } else {
         console.log('Payment created successfully, waiting for completion');
@@ -186,7 +238,8 @@ const CheckoutModal = ({
           }, 1500);
           
           // Remove message listener since we're handling it directly
-          window.removeEventListener('message', messageHandler);
+          window.removeEventListener('message', window._paymentMessageHandler);
+          window._paymentMessageHandler = null;
         }
       }
       
@@ -194,6 +247,10 @@ const CheckoutModal = ({
       console.error('Payment failed with error:', e);
       setPaymentStatus("failed");
       setProgress(0);
+      if (window._paymentMessageHandler) {
+        window.removeEventListener('message', window._paymentMessageHandler);
+        window._paymentMessageHandler = null;
+      }
     }
   };
 
@@ -282,5 +339,17 @@ const CheckoutModal = ({
     </Dialog>
   );
 };
+
+// Add this at the top of the file, outside of the component
+declare global {
+  interface Window {
+    _paymentMessageHandler: ((event: MessageEvent) => void) | null;
+  }
+}
+
+// Initialize the global handler if it doesn't exist
+if (typeof window !== 'undefined' && window._paymentMessageHandler === undefined) {
+  window._paymentMessageHandler = null;
+}
 
 export default CheckoutModal;

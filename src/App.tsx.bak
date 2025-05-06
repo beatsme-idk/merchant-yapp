@@ -1,8 +1,8 @@
 import { Suspense, useEffect } from "react";
-import { Routes, Route } from "react-router-dom";
+import { useRoutes, Routes, Route } from "react-router-dom";
 import { RainbowKitProvider, getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { createConfig, http, WagmiConfig } from 'wagmi';
-import { mainnet } from 'wagmi/chains';
+import { mainnet, polygon, optimism, arbitrum, base, gnosis } from 'wagmi/chains';
 import { 
   metaMaskWallet,
   coinbaseWallet,
@@ -14,11 +14,12 @@ import { YodlProvider, useYodl } from './contexts/YodlContext';
 import Home from "./components/home";
 import OrderConfirmation from "./components/OrderConfirmation";
 import PaymentBridge from "./components/PaymentBridge";
+import routes from "tempo-routes";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { Analytics } from "@vercel/analytics/react";
 
-const chains = [mainnet] as const;
+const chains = [mainnet, polygon, optimism, arbitrum, base, gnosis] as const;
 
 const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
 
