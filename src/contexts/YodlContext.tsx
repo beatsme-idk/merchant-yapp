@@ -249,10 +249,12 @@ export const YodlProvider: React.FC<YodlProviderProps> = ({ children }) => {
       // Handle preferred flow based on device/context
       let flow = 'iframe';
       
-      // Use redirect flow for mobile/touch devices and when already in an iframe
-      if (isMobile || isTouch || isInIframeValue) {
+      // Use redirect flow only for mobile/touch devices but NOT when in an iframe
+      if ((isMobile || isTouch) && !isInIframeValue) {
         flow = 'redirect';
-        logDebug(`Using redirect flow due to: mobile=${isMobile}, touch=${isTouch}, iframe=${isInIframeValue}`);
+        logDebug(`Using redirect flow due to: mobile=${isMobile}, touch=${isTouch}`);
+      } else {
+        logDebug(`Using iframe flow: mobile=${isMobile}, touch=${isTouch}, iframe=${isInIframeValue}`);
       }
             
       // Create payment options
@@ -267,7 +269,9 @@ export const YodlProvider: React.FC<YodlProviderProps> = ({ children }) => {
         allowedOrigins: [
           window.location.origin,
           'http://localhost:5174',
-          'https://merchant-yapp.vercel.app'
+          'https://merchant-yapp.vercel.app',
+          'https://yodl.me',
+          'https://keys.coinbase.com'
         ]
       };
       

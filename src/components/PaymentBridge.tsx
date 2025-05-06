@@ -17,6 +17,20 @@ const PaymentBridge: React.FC = () => {
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      // Add origin validation
+      const allowedOrigins = [
+        window.location.origin,
+        'http://localhost:5174',
+        'https://merchant-yapp.vercel.app',
+        'https://yodl.me',
+        'https://keys.coinbase.com'
+      ];
+      
+      if (!allowedOrigins.includes(event.origin)) {
+        console.warn(`PaymentBridge: Received message from untrusted origin: ${event.origin}`);
+        return;
+      }
+      
       // Filter for potential payment completion messages (more specific)
       if (event.data && typeof event.data === 'object' && 
           event.data.type === 'payment_complete' && 

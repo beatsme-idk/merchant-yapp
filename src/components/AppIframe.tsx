@@ -7,7 +7,9 @@ const AppIframe: React.FC<{ url: string; onPaymentComplete: (data: any) => void 
       const allowedOrigins = [
         window.location.origin,
         'http://localhost:5174',
-        'https://merchant-yapp.vercel.app'
+        'https://merchant-yapp.vercel.app',
+        'https://yodl.me',
+        'https://keys.coinbase.com'
       ];
       
       if (!allowedOrigins.includes(event.origin)) {
