@@ -99,11 +99,19 @@ const CheckoutModal = ({
       const messageHandler = (event: MessageEvent) => {
         console.log('Received message event:', event.data);
         const data = event.data;
-        if (data && typeof data === 'object' && data.type === 'payment_complete' && data.orderId === finalOrderId) {
+        
+        // Verify this is a payment completion message for our order
+        const isPaymentComplete = data && 
+          typeof data === 'object' && 
+          (data.type === 'payment_complete' || data.txHash) &&
+          (data.orderId === finalOrderId || data.memo === finalOrderId || !data.orderId);
+          
+        if (isPaymentComplete) {
           console.log('Payment completion message received:', data);
           setProgress(100);
           setPaymentStatus("success");
           setTimeout(() => {
+            console.log('Navigating to confirmation page with orderId:', finalOrderId);
             navigate(`/confirmation?orderId=${finalOrderId}`);
             onClose();
           }, 1500);
@@ -137,9 +145,51 @@ const CheckoutModal = ({
         productPaymentAddress: product.paymentAddress,
       });
       
-      console.log('Payment creation result:', payment);
+      // Clear timeout as soon as we get a response
+      clearTimeout(paymentTimeout);
       
-      if (!payment) throw new Error('Payment creation failed');
+      console.log('createPayment returned:', payment);
+      
+      // If we get back null, the payment wasn't created - could be user cancellation or error
+      if (!payment) {
+        console.error('Payment creation returned null');
+        window.removeEventListener('message', messageHandler);
+        throw new Error('Payment creation failed');
+      } else {
+        console.log('Payment created successfully, waiting for completion');
+        setProgress(50);
+        
+        // If payment has txHash, it's already complete - handle direct success
+        if (payment.txHash) {
+          console.log('Payment already has txHash, handling direct completion:', payment);
+          
+          // Store payment in localStorage
+          try {
+            localStorage.setItem(`payment_${finalOrderId}`, JSON.stringify({
+              txHash: payment.txHash,
+              chainId: payment.chainId,
+              timestamp: new Date().toISOString()
+            }));
+          } catch (err) {
+            console.error("Failed to save direct payment details to localStorage", err);
+          }
+          
+          // Update UI
+          setProgress(100);
+          setPaymentStatus("success");
+          
+          // Navigate to confirmation after delay
+          setTimeout(() => {
+            console.log('Navigating to confirmation (direct) with orderId:', finalOrderId);
+            navigate(`/confirmation?orderId=${finalOrderId}`);
+            onClose();
+          }, 1500);
+          
+          // Remove message listener since we're handling it directly
+          window.removeEventListener('message', messageHandler);
+        }
+      }
+      
     } catch (e) {
       console.error('Payment failed with error:', e);
       setPaymentStatus("failed");
